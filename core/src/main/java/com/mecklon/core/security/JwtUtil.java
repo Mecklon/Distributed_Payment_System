@@ -69,15 +69,15 @@ public class JwtUtil {
 
         Claims claims = extractAllClaims(token);
 
+
         JwtPrincipal principal = new JwtPrincipal(
                 claims.get("userId", String.class),
-                claims.getSubject(),
                 claims.get("displayUsername", String.class),
+                claims.getSubject(),
                 List.of()
         );
 
-
-        return new JwtPrincipal();
+        return principal;
     }
 
 
