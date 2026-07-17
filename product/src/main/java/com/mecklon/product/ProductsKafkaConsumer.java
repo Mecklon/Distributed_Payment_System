@@ -4,6 +4,7 @@ import com.mecklon.core.commands.ReleaseProductCommand;
 import com.mecklon.core.commands.ReserveProductCommand;
 import com.mecklon.core.commands.ReserveProductCommandDetails;
 import com.mecklon.core.dtos.ProductDetailsDTO;
+import com.mecklon.core.dtos.ProductReservationInfoDTO;
 import com.mecklon.product.model.*;
 import com.mecklon.product.model.types.FailedReservedProductOutboxEventStatus;
 import com.mecklon.product.model.types.ReleasedProductOutboxEventStatus;
@@ -38,10 +39,9 @@ public class ProductsKafkaConsumer {
         System.out.println("=========");
         System.out.println("received");
         System.out.println("=========");
-        ReserveProductCommandIdempotencyKey key = reserveProductCommandIdempotencyKeyRepository.findById(command.getOrderId()).orElse(null);
-        if(key!=null){
-            return;
-        }
+
+        reserveProductCommandIdempotencyKeyRepository.insert(new ReserveProductCommandIdempotencyKey(command.getOrderId()));
+
 
         int i = 0;
         double totalPrice=0;
@@ -80,7 +80,6 @@ public class ProductsKafkaConsumer {
                     .status(ReservedProductOutboxEventStatus.CREATED)
                     .build();
             reservedProductOutBoxEventRepository.save(event);
-            reserveProductCommandIdempotencyKeyRepository.save(new ReserveProductCommandIdempotencyKey(command.getOrderId()));
             return;
         }
 
@@ -104,7 +103,6 @@ public class ProductsKafkaConsumer {
                 .status(FailedReservedProductOutboxEventStatus.CREATED)
                 .build();
         failedReservedProductOutboxEventRepository.save(event);
-        reserveProductCommandIdempotencyKeyRepository.save(new ReserveProductCommandIdempotencyKey(command.getOrderId()));
     }
 
     private final ReleaseProductCommandIdempotencykeyRepository releaseProductCommandIdempotencykeyRepository;
@@ -113,10 +111,8 @@ public class ProductsKafkaConsumer {
     @KafkaListener(topics="${release-product-command}")
     @Transactional
     public void releaseProductForFailedOrderIdCreation(@Payload ReleaseProductCommand releaseProductCommand){
-        if(releaseProductCommandIdempotencykeyRepository.existsById(releaseProductCommand.getOrderId())){
-            return;
-        }
-        for(ProductDetailsDTO product: releaseProductCommand.getProductList()){
+
+        for(ProductReservationInfoDTO product: releaseProductCommand.getProductList()){
             Query query = new Query();
             query.addCriteria(new Criteria().andOperator(
                     Criteria.where("id").is(product.getProductId())
@@ -131,7 +127,8 @@ public class ProductsKafkaConsumer {
                             Product.class
                     );
         }
-        releaseProductCommandIdempotencykeyRepository.save(new ReleaseProductCommandIdempotencyKey(releaseProductCommand.getOrderId()));
+        releaseProductCommandIdempotencykeyRepository.insert(new ReleaseProductCommandIdempotencyKey(releaseProductCommand.getOrderId()));
+
         ReleasedProductOutboxEvent releasedProductOutboxEvent = ReleasedProductOutboxEvent.builder()
                 .orderId(releaseProductCommand.getOrderId())
                 .createdAt(Instant.now())

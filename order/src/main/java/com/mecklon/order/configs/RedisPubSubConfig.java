@@ -17,7 +17,7 @@ public class RedisPubSubConfig {
     RedisMessageListenerContainer redisMessageListenerContainer(
             RedisConnectionFactory connectionFactory,
             MessageListenerAdapter listenerAdapter) {
-
+        System.out.println("Creating Redis listener container");
         RedisMessageListenerContainer container =
                 new RedisMessageListenerContainer();
 
@@ -36,10 +36,12 @@ public class RedisPubSubConfig {
     MessageListenerAdapter messageListenerAdapter(
             WebsocketSubscriber subscriber) {
 
-        return new MessageListenerAdapter(
-                subscriber,
-                "receive"
-        );
+        MessageListenerAdapter adapter =
+                new MessageListenerAdapter(subscriber, "receive");
+
+        adapter.setSerializer(new GenericJackson2JsonRedisSerializer());
+
+        return adapter;
     }
 
     @Bean

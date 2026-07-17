@@ -1,15 +1,9 @@
 package com.mecklon.order;
 
 
-import com.mecklon.order.models.CreatePaymentOutboxCommand;
-import com.mecklon.order.models.Order;
-import com.mecklon.order.models.PropagateReserveOrderOutboxCommand;
-import com.mecklon.order.models.ReservedProductEventIdempotencyKey;
+import com.mecklon.order.models.*;
 import com.mecklon.order.models.types.PropagateReserveOrderOutBoxCommandStatus;
-import com.mecklon.order.repositories.CreatePaymentOutBoxCommandRepository;
-import com.mecklon.order.repositories.OrderRepository;
-import com.mecklon.order.repositories.PropagateReserveOrderOutboxCommandRepository;
-import com.mecklon.order.repositories.ReservedProductEventIdempotencyKeyRepository;
+import com.mecklon.order.repositories.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,26 +19,29 @@ public class OrderTransactions {
 
 
     @Transactional
-    public void saveCreatePaymentOutboxCommandWithIdempotencyKey(CreatePaymentOutboxCommand command){
+    public void saveCreatePaymentOutboxCommandWithIdempotencyKey(Order order, CreatePaymentOutboxCommand command, ReservedProductEventIdempotencyKey reservedProductEventIdempotencyKey){
+        reservedProductEventIdempotencyKeyRepository.insert(reservedProductEventIdempotencyKey);
 
-        reservedProductEventIdempotencyKeyRepository.save(new ReservedProductEventIdempotencyKey(command.getOrderId()));
+        orderRepository.save(order);
         createPaymentOutBoxCommandRepository.save(command);
     }
 
     private final OrderRepository orderRepository;
     private final PropagateReserveOrderOutboxCommandRepository propagateReserveOrderOutboxCommandRepository;
+    private final CreateOrderIdempotencyKeyRepository createOrderIdempotencyKeyRepository;
 
     @Transactional
     public void saveOrderWithOutbox(Order order){
+        createOrderIdempotencyKeyRepository.insert(new CreateOrderIdempotencyKey(order.getCheckoutSessionId()));
+
+        System.out.println("should print once");
         Order savedOrder = orderRepository.save(order);
         PropagateReserveOrderOutboxCommand outBoxCommand = PropagateReserveOrderOutboxCommand.builder()
                 .orderId(order.getOrderId())
                 .status(PropagateReserveOrderOutBoxCommandStatus.CREATED)
                 .createdAt(Instant.now())
                 .build();
+        System.out.println("Order id: "+savedOrder.getOrderId());
         propagateReserveOrderOutboxCommandRepository.save(outBoxCommand);
     }
-
-
-
 }

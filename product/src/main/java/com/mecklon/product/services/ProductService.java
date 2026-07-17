@@ -34,14 +34,33 @@ public class ProductService {
         newProduct.setStock(request.getStock());
         newProduct.setRating(request.getRating());
 
+        try{
+            if (profile != null) {
+                File dir = new File(uploadDir);
+                System.out.println(dir.getAbsolutePath());
 
-        if(profile!=null){
-            String uniqueName = System.currentTimeMillis() + "-" + profile.getOriginalFilename();
-            String path = uploadDir + File.separator + uniqueName;
-            profile.transferTo(new File(path));
-            newProduct.setImgUrl(path);
-            newProduct.setImgName(uniqueName);
+                if (!dir.exists()) {
+                    boolean created = dir.mkdirs();
+                    System.out.println("Created: " + created);
+                }
+                System.out.println("Exists: " + dir.exists());
+
+                String uniqueName = System.currentTimeMillis() + "-" + profile.getOriginalFilename();
+                File destination = new File(dir, uniqueName);
+                System.out.println(destination.isAbsolute());
+                System.out.println(destination.getAbsolutePath());
+                System.out.println(uploadDir);
+                profile.transferTo(destination.getAbsoluteFile());
+
+                newProduct.setImgUrl(destination.getAbsolutePath());
+                newProduct.setImgName(uniqueName);
+            }
+        }catch(Exception e){
+            e.printStackTrace();
+            throw e;
         }
+
+
 
         productRepository.save(newProduct);
     }

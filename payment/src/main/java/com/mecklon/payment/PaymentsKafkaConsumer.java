@@ -2,6 +2,7 @@ package com.mecklon.payment;
 
 
 import com.mecklon.core.commands.CreatePaymentCommand;
+import com.mecklon.payment.models.CheckPaymentStatusOutboxEvent;
 import com.mecklon.payment.models.GetOrderIdOutboxRequest;
 import com.mecklon.payment.models.Payment;
 import com.mecklon.payment.repositories.PaymentRepository;

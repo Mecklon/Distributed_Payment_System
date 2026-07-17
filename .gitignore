@@ -1,0 +1,5 @@
+.env
+payment/src/main/resources/application.properties
+product/src/main/resources/application.properties
+order/src/main/resources/application.properties
+auth/src/main/resources/application.properties

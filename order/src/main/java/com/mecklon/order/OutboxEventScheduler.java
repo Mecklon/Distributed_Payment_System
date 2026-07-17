@@ -4,14 +4,11 @@ import com.mecklon.core.commands.CreatePaymentCommand;
 import com.mecklon.core.commands.ReleaseProductCommand;
 import com.mecklon.core.commands.ReserveProductCommand;
 import com.mecklon.core.commands.ReserveProductCommandDetails;
-import com.mecklon.core.events.FailedCreatedPaymentEvent;
-import com.mecklon.order.models.CreatePaymentOutboxCommand;
-import com.mecklon.order.models.Order;
-import com.mecklon.order.models.PropagateReserveOrderOutboxCommand;
-import com.mecklon.order.models.ReleaseProductOutboxCommand;
+import com.mecklon.order.models.*;
 import com.mecklon.order.models.types.CreatePaymentOutboxCommandStatus;
 import com.mecklon.order.models.types.PropagateReserveOrderOutBoxCommandStatus;
 import com.mecklon.order.models.types.ReleaseProductOutboxCommandStatus;
+import com.mecklon.order.models.types.SagaEventHistoryStatus;
 import com.mecklon.order.repositories.CreatePaymentOutBoxCommandRepository;
 import com.mecklon.order.repositories.OrderRepository;
 import com.mecklon.order.repositories.PropagateReserveOrderOutboxCommandRepository;
@@ -100,6 +97,17 @@ public class OutboxEventScheduler {
 
             if(claimed == null)continue;
 
+            Update orderUpdate = new Update();
+            orderUpdate.push("history", new SagaEventHistory(Instant.now(),false, SagaEventHistoryStatus.RESERVE_PRODUCT_COMMAND));
+            Query orderQuery = new Query();
+            orderQuery.addCriteria(Criteria.where("orderId").is(claimed.getOrderId()));
+            mongoTemplate.findAndModify(
+                    orderQuery,
+                    orderUpdate,
+                    FindAndModifyOptions.options().returnNew(false),
+                    Order.class
+            );
+
             Order order = orderRepository.findById(claimed.getOrderId()).orElse(null);
             if(order==null){
                 claimed.setStatus(PropagateReserveOrderOutBoxCommandStatus.PROPAGATED);
@@ -117,7 +125,10 @@ public class OutboxEventScheduler {
                         }).toList()
                     );
 
-            kafkaTemplate.send(reserveProductCommandTopic, command);
+            System.out.println("sending receive product command");
+            kafkaTemplate.send(reserveProductCommandTopic, claimed.getOrderId(),command);
+            System.out.println("sent receive product command");
+
             claimed.setStatus(PropagateReserveOrderOutBoxCommandStatus.PROPAGATED);
             propagateReserveOrderOutboxCommandRepository.save(claimed);
         }
@@ -174,6 +185,8 @@ public class OutboxEventScheduler {
             update.set("leasedUntil", now.plus(Duration.ofMinutes(2)));
             update.set("status",CreatePaymentOutboxCommandStatus.PROCESSING);
 
+
+
             CreatePaymentOutboxCommand claimed =
                     mongoTemplate.findAndModify(
                             claimQuery,
@@ -184,8 +197,19 @@ public class OutboxEventScheduler {
 
             if(claimed==null)continue;
 
-            CreatePaymentCommand command = new CreatePaymentCommand(claimed.getId(), claimed.getPrice());
-            CreatePaymentCommandKafkaTemplate.send(createPaymentCommandTopic, command);
+            Update orderUpdate = new Update();
+            orderUpdate.push("history", new SagaEventHistory(Instant.now(),false, SagaEventHistoryStatus.CREATE_PAYMENT_COMMAND));
+            Query orderQuery = new Query();
+            orderQuery.addCriteria(Criteria.where("orderId").is(claimed.getOrderId()));
+            mongoTemplate.findAndModify(
+                    orderQuery,
+                    orderUpdate,
+                    FindAndModifyOptions.options().returnNew(false),
+                    Order.class
+            );
+
+            CreatePaymentCommand command = new CreatePaymentCommand(claimed.getOrderId(), claimed.getPrice());
+            CreatePaymentCommandKafkaTemplate.send(createPaymentCommandTopic,claimed.getOrderId(), command);
             claimed.setStatus(CreatePaymentOutboxCommandStatus.PROPAGATED);
             createPaymentOutBoxCommandRepository.save(claimed);
         }
@@ -211,7 +235,7 @@ public class OutboxEventScheduler {
     private final ReleaseProductOutboxCommandRepository releaseProductOutboxCommandRepository;
 
     @Scheduled(fixedDelay = 5000)
-    public void propagateReleaseProductsDueToFailedOrderIdCreation(){
+    public void propagateReleaseProducts(){
         UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
 
@@ -250,6 +274,7 @@ public class OutboxEventScheduler {
             update.set("leasedUntil", now.plus(Duration.ofMinutes(2)));
             update.set("status",ReleaseProductOutboxCommandStatus.PROCESSING);
 
+
             ReleaseProductOutboxCommand claimed =
                     mongoTemplate.findAndModify(
                             claimQuery,
@@ -260,9 +285,25 @@ public class OutboxEventScheduler {
 
             if(claimed == null)continue;
 
+            Update orderUpdate = new Update();
+
+            if(outboxCommand.getPaymentExpired()){
+                orderUpdate.push("history", new SagaEventHistory(Instant.now(),true, SagaEventHistoryStatus.RELEASE_PRODUCT_PAYMENT_EXPIRED_COMMAND));
+            }else{
+                orderUpdate.push("history", new SagaEventHistory(Instant.now(),true, SagaEventHistoryStatus.RELEASE_PRODUCT_ORDER_ID_CREATION_FAILED_COMMAND));
+            }
+            Query orderQuery = new Query();
+            orderQuery.addCriteria(Criteria.where("orderId").is(claimed.getOrderId()));
+            mongoTemplate.findAndModify(
+                    orderQuery,
+                    orderUpdate,
+                    FindAndModifyOptions.options().returnNew(false),
+                    Order.class
+            );
+
             ReleaseProductCommand command = new ReleaseProductCommand(outboxCommand.getOrderId(), outboxCommand.getProductList());
 
-            releaseProductCommandKafkaTemplate.send(releaseProductsTopic, command);
+            releaseProductCommandKafkaTemplate.send(releaseProductsTopic, claimed.getOrderId(), command);
             claimed.setStatus(ReleaseProductOutboxCommandStatus.PROPAGATED);
             releaseProductOutboxCommandRepository.save(claimed);
         }

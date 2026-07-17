@@ -11,10 +11,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -23,16 +20,24 @@ import java.util.List;
 
 
 @RestController
-@RequestMapping("/product")
 @RequiredArgsConstructor
 public class ProductsController {
 
     private final ProductService productService;
 
     @PostMapping("/addProduct")
-    public ResponseEntity<Object> saveProduct(MultipartFile profile,@RequestBody AddProductRequest request){
+    public ResponseEntity<Object> saveProduct(@RequestParam(name = "profile", required = false) MultipartFile profile,
+    @RequestParam(name = "name", required = false) String name,
+    @RequestParam(name = "rating", required = false) Double rating,
+    @RequestParam(name = "description", required = false) String description,
+    @RequestParam(name = "category", required = false) String category,
+    @RequestParam(name = "price", required = false) Double price,
+    @RequestParam(name = "stock", required = false) Long stock
+
+    ){
+        System.out.println(name);
         try{
-            productService.saveProduct(profile, request);
+            productService.saveProduct(profile, new AddProductRequest(name, rating, description, category, price, stock));
         }catch (IOException e){
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
                     new ErrorResponse("INTERNAL_SERVER_ERROR","Could not save the provided image")

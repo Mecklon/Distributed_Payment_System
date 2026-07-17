@@ -9,6 +9,7 @@ import com.mecklon.auth.models.User;
 import com.mecklon.auth.repositories.UserRepository;
 import com.mecklon.auth.services.CustomUserDetails;
 import com.mecklon.auth.services.CustomUserDetailsService;
+import com.mecklon.core.security.JwtPrincipal;
 import com.mecklon.core.security.JwtUtil;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -23,7 +25,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/auth")
 @RequiredArgsConstructor
 public class AuthController {
 
@@ -33,8 +34,8 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @PostMapping("/login")
-    public AuthResponse login(@RequestBody AuthRequest request) {
+    @PostMapping("/auth/login")
+    public ResponseEntity<AuthResponse> login(@RequestBody AuthRequest request) {
 
         System.out.println(request.getEmail());
         System.out.println(request.getPassword());
@@ -52,11 +53,11 @@ public class AuthController {
 
         String token = jwtUtil.generateToken(userDetails.getUsername(), userDetails.getId(), userDetails.getDisplayUsername());
         User user = userRepository.findByEmail(userDetails.getUsername());
-        return new AuthResponse(user.getId(),token, userDetails.getUsername(), userDetails.getDisplayUsername(), user.getAddress() );
+        return ResponseEntity.status(HttpStatus.OK).body(new AuthResponse(user.getId(),token, userDetails.getUsername(), userDetails.getDisplayUsername(), user.getAddress() ));
     }
 
 
-    @PostMapping("/signup")
+    @PostMapping("/auth/signup")
     public ResponseEntity<AuthResponse> signup(@RequestBody SignupRequest request) {
 
         if (request.getUsername() == null || request.getUsername().isBlank()
@@ -98,4 +99,12 @@ public class AuthController {
                 .body(response);
     }
 
+
+    @PostMapping("/autoLogin")
+    public ResponseEntity<AuthResponse> autoLogin(Authentication auth){
+        JwtPrincipal userDetails = (JwtPrincipal) auth.getPrincipal();
+        System.out.println("autologged");
+        User user = userRepository.findByEmail(userDetails.getUsername());
+        return ResponseEntity.status(HttpStatus.OK).body(new AuthResponse(user.getId(),null, userDetails.getUsername(), userDetails.getDisplayUsername(), user.getAddress()));
+    }
 }

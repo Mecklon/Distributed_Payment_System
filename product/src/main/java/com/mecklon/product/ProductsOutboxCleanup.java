@@ -44,7 +44,7 @@ public class ProductsOutboxCleanup {
     public void propagateProductReservedEvent(){
         UUID workerId = UUID.randomUUID();
         Instant now = Instant.now();
-
+        System.out.println("running reserved produt event propogation");
 
         Query query = new Query();
         query.addCriteria(
@@ -58,6 +58,7 @@ public class ProductsOutboxCleanup {
         ).limit(100);
 
         List<ReservedProductOutboxEvent> outboxCommands = mongoTemplate.find(query, ReservedProductOutboxEvent.class);
+        System.out.println(outboxCommands.size());
 
         for(ReservedProductOutboxEvent outboxCommand: outboxCommands){
 
@@ -91,8 +92,10 @@ public class ProductsOutboxCleanup {
             if(claimed==null)continue;
 
             ReservedProductEvent event = new ReservedProductEvent(claimed.getOrderId(), claimed.getTotalPrice());
+            System.out.println("sending reserved product");
+            kafkaTemplate.send(reservedProductEventTopic,claimed.getOrderId(), event);
+            System.out.println("sent reserved product");
 
-            kafkaTemplate.send(reservedProductEventTopic, event);
             claimed.setStatus(ReservedProductOutboxEventStatus.PROPAGATED);
             reservedProductOutBoxEventRepository.save(claimed);
         }
@@ -167,7 +170,7 @@ public class ProductsOutboxCleanup {
             if(claimed==null)continue;
 
             FailedReservedProductEvent event = new FailedReservedProductEvent(claimed.getOrderId());
-            failedReservedProductEventKafkaTemplate.send(failedReservedProductEventTopic, event);
+            failedReservedProductEventKafkaTemplate.send(failedReservedProductEventTopic,claimed.getOrderId(), event);
             claimed.setStatus(FailedReservedProductOutboxEventStatus.PROPAGATED);
             failedReservedProductOutboxEventRepository.save(claimed);
         }
@@ -242,7 +245,7 @@ public class ProductsOutboxCleanup {
             if(claimed==null)continue;
 
             ReleasedProductEvent event = new ReleasedProductEvent(claimed.getOrderId());
-            releasedProductEventKafkaTemplate.send(releasedProductEventTopic,event);
+            releasedProductEventKafkaTemplate.send(releasedProductEventTopic,claimed.getOrderId(),event);
             claimed.setStatus(ReleasedProductOutboxEventStatus.PROPAGATED);
             releasedProductOutboxEventRepository.save(claimed);
         }
