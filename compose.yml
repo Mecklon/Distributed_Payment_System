@@ -1,4 +1,6 @@
 services:
+
+ 
   nginx:
     image: nginx:alpine
     ports:
@@ -10,9 +12,17 @@ services:
       - order
       - payment
       - product
+      - frontend
 
     networks:
       - myNetwork
+
+  frontend:
+    build: "./frontend"
+    networks:
+      - myNetwork
+    volumes:
+    - ./product/uploads:/uploads
 
   auth:
     build: 
